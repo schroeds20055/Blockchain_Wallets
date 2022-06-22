@@ -25,6 +25,7 @@
 
 ################################################################################
 # Imports
+from crypto_wallet import generate_account
 import streamlit as st
 from dataclasses import dataclass
 from typing import Any, List
@@ -79,7 +80,74 @@ w3 = Web3(Web3.HTTPProvider('HTTP://127.0.0.1:7545'))
 # @TODO:
 # From `crypto_wallet.py import the functions generate_account, get_balance,
 #  and send_transaction
-# YOUR CODE HERE
+# Imports
+import os
+import requests
+from dotenv import load_dotenv
+load_dotenv()
+from mnemonic import Mnemonic
+from bip44 import Wallet
+from web3 import Account
+from web3 import middleware
+from web3.gas_strategies.time_based import medium_gas_price_strategy
+
+################################################################################
+# Wallet functionality
+
+def generate_account():
+    """Create a digital wallet and Ethereum account from a mnemonic seed phrase."""
+    # Fetch mnemonic from environment variable.
+    mnemonic = os.getenv("MNEMONIC")
+
+    # Create Wallet Object
+    wallet = Wallet(mnemonic)
+
+    # Derive Ethereum Private Key
+    private, public = wallet.derive_account("eth")
+
+    # Convert private key into an Ethereum account
+    account = Account.privateKeyToAccount(private)
+
+    return account
+
+def get_balance(w3, address):
+    """Using an Ethereum account address access the balance of Ether"""
+    # Get balance of address in Wei
+    wei_balance = w3.eth.get_balance(address)
+
+    # Convert Wei value to ether
+    ether = w3.fromWei(wei_balance, "ether")
+
+    # Return the value in ether
+    return ether
+
+
+def send_transaction(w3, account, to, wage):
+    """Send an authorized transaction to the Ganache blockchain."""
+    # Set gas price strategy
+    w3.eth.setGasPriceStrategy(medium_gas_price_strategy)
+
+    # Convert eth amount to Wei
+    value = w3.toWei(wage, "ether")
+
+    # Calculate gas estimate
+    gasEstimate = w3.eth.estimateGas({"to": to, "from": account.address, "value": value})
+
+    # Construct a raw transaction
+    raw_tx = {
+        "to": to,
+        "from": account.address,
+        "value": value,
+        "gas": gasEstimate,
+        "gasPrice": 0,
+        "nonce": w3.eth.getTransactionCount(account.address)
+    }
+
+    # Sign the raw transaction with ethereum account
+    signed_tx = account.signTransaction(raw_tx)
+
+    # Send the signed transactions
+    return w3.eth.sendRawTransaction(signed_tx.rawTransaction)
 
 ################################################################################
 # Fintech Finder Candidate Information
@@ -130,7 +198,7 @@ st.sidebar.markdown("## Client Account Address and Ethernet Balance in Ether")
 
 # @TODO:
 #  Call the `generate_account` function and save it as the variable `account`
-# YOUR CODE HERE
+account = generate_account      
 
 ##########################################
 
@@ -146,7 +214,7 @@ st.sidebar.write(account.address)
 # @TODO
 # Call `get_balance` function and pass it your account address
 # Write the returned ether balance to the sidebar
-# YOUR CODE HERE
+st.sidebar.write(get_balance(account.address))
 
 ##########################################
 
@@ -237,11 +305,11 @@ st.sidebar.markdown("## Total Wage in Ether")
 # Calculate total `wage` for the candidate by multiplying the candidate’s hourly
 # rate from the candidate database (`candidate_database[person][3]`) by the
 # value of the `hours` variable
-# YOUR CODE HERE
+wage = 'candidate_database[person][3]' * hours
 
 # @TODO
 # Write the `wage` calculation to the Streamlit sidebar
-# YOUR CODE HERE
+st.sidebar.write(wage)
 
 ##########################################
 # Step 2 - Part 2:
@@ -268,7 +336,7 @@ if st.sidebar.button("Send Transaction"):
     # Call the `send_transaction` function and pass it 3 parameters:
     # Your `account`, the `candidate_address`, and the `wage` as parameters
     # Save the returned transaction hash as a variable named `transaction_hash`
-    # YOUR CODE HERE
+    transaction_hash = send_transaction(account, candidate_address, wage)
 
     # Markdown for the transaction hash
     st.sidebar.markdown("#### Validated Transaction Hash")
@@ -318,3 +386,4 @@ get_people()
     # * Click the transaction and take a screenshot of it.
     # Save this screenshot to the README.md file of your GitHub repository for
     #  this Challenge assignment.
+
